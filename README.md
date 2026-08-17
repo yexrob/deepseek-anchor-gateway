@@ -23,6 +23,7 @@ ANCHOR_UPSTREAM_KEY=sk-xxx node server.mjs
 | `ANCHOR_PORT` | `8787` | 监听端口 |
 | `ANCHOR_HOST` | `127.0.0.1` | 监听地址 |
 | `ANCHOR_KEEP` | 见下 | 首轮保留工具的白名单正则 |
+| `ANCHOR_PROMOTE_AFTER_FIRST` | `0` | `1` = 首轮锚定后提升全量工具（经典模式）；`0` = 持续锚定（每轮裁剪） |
 
 默认白名单正则（大小写不敏感）：
 
@@ -32,15 +33,13 @@ ANCHOR_UPSTREAM_KEY=sk-xxx node server.mjs
 
 即保留 bash/编辑器/写文件类，裁掉 Read/Glob/Grep/WebFetch 等。
 
-## 行为细节
+## 两种锚定模式
 
-- **工具持续锚定**：每轮 `tools` 都按白名单过滤，目录 = 白名单 ∪ 会话历史中模型已调用过的工具（未调用过的一律裁掉）。防 post-promotion 全量 dump 拉回 standard 轨迹
-- **instructions 全程 persona**（对齐 opencode-anchored 的"官方 anchored 全程 minimal system"）：完整 system prompt 不恢复——开局轮只发一句话 persona；工具 continuation 轮追加一句 hint 让模型按需读取 CLAUDE.md（dsh instruction-hint 做法）。bingo 行为契约靠 hint + 文件自读维持
-- **开局轮剥离自动注入**：bingo 每轮追加的 `[SYSTEM NOTIFICATION - TASK REMINDER]` 在开局轮剔除（dsh context-gate 同款行为）
-- **恢复时机**：无"恢复完整 system"——工具始终小目录；模型调用过的工具自动解锁
-- **system prompt 不原样透传**（见上）；`tool_choice` 若钉住被裁工具，降级为 `auto`（否则上游 400）
-- **streaming**：SSE 整流直通
-- **零依赖**：Node 18+（内置 fetch），只用了 `node:http`
+**持续锚定（默认，`ANCHOR_PROMOTE_AFTER_FIRST=0`）**：每轮 `tools` 都按白名单过滤，目录 = 白名单 ∪ 会话历史中模型已调用过的工具。防 post-promotion 全量 dump 拉回 standard 轨迹。
+
+**首轮提升（`ANCHOR_PROMOTE_AFTER_FIRST=1`）**：开局轮（会话首轮 / 用户新消息后第一轮）裁剪工具 + persona；之后轮次**全量工具原样透传**，instructions 仍保持 persona + hint（对齐 opencode-anchored 的"system 全程 minimal"）。
+
+两种模式下 instructions 都**不恢复完整版**：开局轮只发一句话 persona；工具 continuation 轮追加一句 hint 让模型按需读取 CLAUDE.md（dsh instruction-hint 做法）。bingo 行为契约靠 hint + 文件自读维持。
 
 ## 测试
 

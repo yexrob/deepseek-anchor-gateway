@@ -71,7 +71,7 @@ async function forward(req, res, path, config) {
   let outBody = raw
   if (json) {
     const r = path === '/v1/responses'
-      ? buildAnchoredResponsesRequest(json, config.keep)
+      ? buildAnchoredResponsesRequest(json, config.keep, undefined, undefined, config.promoteAfterFirst)
       : path === '/v1/chat/completions'
         ? buildAnchoredRequest(json, config.keep)
         : { anchored: false, body: json }

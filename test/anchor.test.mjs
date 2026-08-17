@@ -260,6 +260,62 @@ test('buildAnchoredResponsesRequest: 开局轮剥离自动注入提醒', () => {
   assert.equal(out.instructions, 'You are a helpful software engineer assistant.')
 })
 
+test('buildAnchoredResponsesRequest: promoteAfterFirst 模式——开局轮裁剪工具', () => {
+  const body = {
+    model: 'deepseek-v4-pro',
+    input: [{ type: 'message', role: 'user', content: 'hi' }],
+    tools: RTOOLS,
+    instructions: 'FULL SYSTEM PROMPT '.repeat(100),
+  }
+  const { anchored, body: out } = buildAnchoredResponsesRequest(body, undefined, undefined, undefined, true)
+  assert.equal(anchored, true)
+  assert.deepEqual(out.tools.map((t) => t.name), ['bash'])
+  assert.equal(out.instructions, 'You are a helpful software engineer assistant.')
+})
+
+test('buildAnchoredResponsesRequest: promoteAfterFirst 模式——非开局轮全量工具提升', () => {
+  const body = {
+    model: 'deepseek-v4-pro',
+    input: [
+      { type: 'message', role: 'user', content: 'hi' },
+      { type: 'function_call', call_id: 'c1', name: 'bash', arguments: '{}' },
+      { type: 'function_call_output', call_id: 'c1', output: '{}' },
+      { type: 'message', role: 'user', content: '继续' },
+    ],
+    tools: RTOOLS,
+    instructions: 'FULL SYSTEM PROMPT '.repeat(100),
+  }
+  // 注意：尾部 user = 开局轮，仍裁剪；所以先测真正的 continuation（尾部非 user）
+  const cont = {
+    ...body,
+    input: [
+      { type: 'message', role: 'user', content: 'hi' },
+      { type: 'function_call', call_id: 'c1', name: 'bash', arguments: '{}' },
+      { type: 'function_call_output', call_id: 'c1', output: '{}' },
+    ],
+  }
+  const { anchored, body: out } = buildAnchoredResponsesRequest(cont, undefined, undefined, undefined, true)
+  assert.equal(anchored, true) // instructions 仍被替换为 persona+hint
+  assert.equal(out.tools, cont.tools) // 工具全量原样（同一引用）
+  assert.equal(out.instructions, 'You are a helpful software engineer assistant.' + DEFAULT_HINT)
+})
+
+test('buildAnchoredResponsesRequest: promoteAfterFirst 模式——用户新消息后仍是开局轮（裁剪）', () => {
+  const body = {
+    model: 'deepseek-v4-pro',
+    input: [
+      { type: 'message', role: 'user', content: 'hi' },
+      { type: 'function_call', call_id: 'c1', name: 'bash', arguments: '{}' },
+      { type: 'function_call_output', call_id: 'c1', output: '{}' },
+      { type: 'message', role: 'user', content: '新消息' },
+    ],
+    tools: RTOOLS,
+    instructions: 'FULL SYSTEM PROMPT '.repeat(100),
+  }
+  const { body: out } = buildAnchoredResponsesRequest(body, undefined, undefined, undefined, true)
+  assert.deepEqual(out.tools.map((t) => t.name), ['bash'])
+})
+
 test('buildAnchoredResponsesRequest: 无 instructions 字段不报错', () => {
   const body = {
     model: 'm',
